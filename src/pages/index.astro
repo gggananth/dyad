@@ -1,0 +1,81 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import { currentStudy } from "../lib/auth";
+import { nextStudyPath } from "../lib/flow";
+
+const study = await currentStudy(Astro.request);
+const continueHref = study ? await nextStudyPath(study) : null;
+const inProgress = Boolean(continueHref && continueHref !== "/study/done");
+---
+
+<BaseLayout title="Dyad — creative expression study">
+  <SiteHeader />
+  <main class="mx-auto max-w-3xl px-6 py-16">
+    <p class="text-sm uppercase tracking-[0.18em] text-muted-foreground">A writing study</p>
+    <h1 class="mt-3 font-serif text-5xl leading-tight tracking-tight">
+      The aha moment in a short piece of writing
+    </h1>
+    <p class="mt-6 text-base leading-relaxed text-muted-foreground">
+      Write up to 75 words on your own, or step in as an anonymous collaborator: read a peer’s
+      locked draft, then join to suggest wording. They keep the theme and the draft.
+    </p>
+
+    <div class="mt-10 grid gap-4 md:grid-cols-2">
+      <section class="rounded-2xl border border-border bg-card p-5">
+        <h2 class="font-serif text-2xl tracking-tight">Write</h2>
+        <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
+          One prompt — text or image. Lock a version, then invite someone to suggest changes.
+        </p>
+        {
+          inProgress ? (
+            <p class="mt-6">
+              <a
+                class="inline-flex rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground"
+                href={continueHref}
+              >
+                Continue your piece
+              </a>
+            </p>
+          ) : (
+            <form class="mt-6 space-y-3" method="post" action="/api/start">
+              <label class="block text-sm font-medium">
+                What should we call you?
+                <input
+                  class="mt-2 w-full rounded-lg border border-input bg-card px-3 py-2.5 outline-none ring-ring focus:ring-2"
+                  name="name"
+                  required
+                  maxlength="40"
+                  autocomplete="nickname"
+                  placeholder="First name"
+                />
+              </label>
+              <button
+                class="rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground"
+                type="submit"
+              >
+                Begin writing
+              </button>
+            </form>
+          )
+        }
+      </section>
+
+      <section class="rounded-2xl border border-border bg-card p-5">
+        <h2 class="font-serif text-2xl tracking-tight">Collaborate</h2>
+        <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
+          Review anonymous drafts from people who are waiting. Live pieces show who is on the
+          platform right now. Join only after you have read their work.
+        </p>
+        <p class="mt-6">
+          <a
+            class="inline-flex rounded-lg border border-border px-5 py-2.5 text-sm font-medium"
+            href="/collaborate"
+          >
+            Review peer drafts
+          </a>
+        </p>
+      </section>
+    </div>
+  </main>
+</BaseLayout>

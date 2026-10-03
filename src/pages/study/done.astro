@@ -1,0 +1,23 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import SiteHeader from "../../components/SiteHeader.astro";
+import { currentStudy } from "../../lib/auth";
+import { nextStudyPath } from "../../lib/flow";
+
+const study = await currentStudy(Astro.request);
+if (!study) return Astro.redirect("/");
+const next = await nextStudyPath(study);
+if (next !== "/study/done") return Astro.redirect(next);
+---
+
+<BaseLayout title="Thank you — Dyad">
+  <SiteHeader />
+  <main class="mx-auto max-w-xl px-6 py-16">
+    <p class="text-sm uppercase tracking-[0.18em] text-muted-foreground">Done</p>
+    <h1 class="mt-2 font-serif text-4xl tracking-tight">Thank you, {study.displayName}.</h1>
+    <p class="mt-4 text-sm leading-relaxed text-muted-foreground">
+      Your writing and ratings are saved. You can close this window. If a researcher asked you to
+      stay, let them know you have finished.
+    </p>
+  </main>
+</BaseLayout>

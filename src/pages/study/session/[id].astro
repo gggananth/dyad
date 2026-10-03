@@ -1,0 +1,219 @@
+---
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import { authorizeSession, currentStudy } from "../../../lib/auth";
+import { publicSession } from "../../../lib/events";
+import { nextStudyPath } from "../../../lib/flow";
+import { initials } from "../../../lib/names";
+import { beginPairing, clientConfig, otherName } from "../../../lib/runtime";
+import { getTask } from "../../../lib/tasks";
+import { IMAGE_INSTRUCTION } from "../../../lib/config";
+
+const sessionId = Astro.params.id;
+if (!sessionId) return Astro.redirect("/");
+
+const { session, role, study } = await authorizeSession(Astro.request, sessionId);
+if (!session || !role) {
+  const own = await currentStudy(Astro.request);
+  return Astro.redirect(own ? await nextStudyPath(own) : "/labs");
+}
+
+if (role === "participant" && session.phase === "compare") {
+  return Astro.redirect("/study/compare");
+}
+if (role === "participant" && session.phase === "ended") {
+  return Astro.redirect("/study/done");
+}
+if (role === "partner" && (session.phase === "compare" || session.phase === "ended")) {
+  return Astro.redirect("/lab/thanks");
+}
+
+if (role === "participant" && session.phase === "pairing") {
+  await beginPairing(session.id);
+}
+
+const task = getTask(session.taskId);
+const other = otherName(session, role);
+const meName = role === "participant" ? session.participantName : session.partnerName;
+const promptText =
+  session.stimulusMode === "image" ? IMAGE_INSTRUCTION : (task?.prompt ?? "");
+const boot = {
+  sessionId: session.id,
+  role,
+  meName,
+  otherName: other,
+  otherInitials: initials(other),
+  task: {
+    title: session.stimulusMode === "image" ? "Image prompt" : (task?.title ?? "Task"),
+    prompt: promptText,
+    image: session.stimulusMode === "image" ? (task?.image ?? "") : "",
+  },
+  timings: clientConfig(),
+  snapshot: publicSession(session),
+};
+---
+
+<BaseLayout title={`${session.stimulusMode === "image" ? "Image prompt" : (task?.title ?? "Session")} — Dyad`} full>
+  <script is:inline define:vars={{ boot }}>
+    window.DYAD_BOOT = boot;
+  </script>
+  <div class="flex h-dvh min-h-0 flex-col overflow-hidden" x-data="sessionRoom(window.DYAD_BOOT)" x-init="init()">
+    <header class="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3">
+      <div class="min-w-0">
+        <p class="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Collaboration</p>
+        <h1 class="truncate font-serif text-lg leading-tight" x-text="task.title"></h1>
+      </div>
+      <div class="flex items-center gap-2">
+        <a
+          class="rounded-md border border-border px-3 py-1.5 text-sm"
+          href="/collaborate"
+          x-cloak
+          x-show="role === 'participant' && (phase === 'invite' || phase === 'pairing' || phase === 'connected')"
+        >
+          Other drafts
+        </a>
+        <form method="post" action={`/api/session/${session.id}/finish`} x-show="role === 'participant' && phase === 'connected'">
+          <button class="rounded-md border border-border px-3 py-1.5 text-sm" type="submit">
+            Stop collaborating
+          </button>
+        </form>
+        <button type="button" class="rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground" onclick="toggleTheme()">
+          Theme
+        </button>
+      </div>
+    </header>
+
+    <template x-if="phase === 'invite'">
+      <section class="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center px-6 py-10">
+        <h2 class="font-serif text-4xl tracking-tight">Invite a collaborator</h2>
+        <p class="mt-4 text-sm leading-relaxed text-muted-foreground">
+          Someone will join to suggest syntax, vocabulary, presentation, articulation, or a stronger
+          creative turn. They cannot change your theme. You keep the draft.
+        </p>
+        <section class="mt-6 rounded-2xl border border-border bg-card p-5">
+          <p class="text-xs uppercase tracking-wide text-muted-foreground">Locked draft</p>
+          <p class="mt-2 whitespace-pre-wrap text-sm leading-relaxed" x-text="lockedSolo"></p>
+        </section>
+        <div class="mt-8 flex flex-wrap gap-3">
+          <form method="post" action="/api/invite">
+            <button class="rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground" type="submit">
+              Invite collaborator
+            </button>
+          </form>
+          <a class="rounded-lg border border-border px-5 py-2.5 text-sm" href="/collaborate">
+            Review other pieces
+          </a>
+        </div>
+      </section>
+    </template>
+
+    <template x-if="phase === 'pairing'">
+      <section class="flex flex-1 flex-col items-center justify-center px-6 text-center">
+        <div class="relative mb-8 flex h-24 w-24 items-center justify-center">
+          <span class="ring-pulse absolute inset-0 rounded-full border border-primary/40"></span>
+          <span class="ring-pulse ring-pulse-delay absolute inset-0 rounded-full border border-primary/40"></span>
+          <span class="relative h-16 w-16 rounded-full bg-primary/10"></span>
+        </div>
+        <h2 class="font-serif text-3xl">Looking for a collaborator</h2>
+        <p class="mt-3 max-w-md text-sm text-muted-foreground">
+          You can leave this screen. Your piece stays in the pool until someone joins, or you can go
+          back and do something else.
+        </p>
+        <div class="mt-8 flex flex-wrap justify-center gap-3">
+          <a class="rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground" href="/collaborate">
+            Review other pieces
+          </a>
+          <form method="post" action="/api/cancel-wait">
+            <button class="rounded-lg border border-border px-5 py-2.5 text-sm" type="submit">
+              Go back
+            </button>
+          </form>
+        </div>
+      </section>
+    </template>
+
+    <template x-if="phase === 'connected'">
+      <div class="flex min-h-0 flex-1 flex-col lg:flex-row">
+        <aside class="min-h-0 shrink-0 overflow-y-auto border-b border-border lg:w-80 lg:border-b-0 lg:border-r">
+          <div class="space-y-4 p-4">
+            <template x-if="task.image">
+              <img :src="task.image" alt="" class="w-full rounded-lg border border-border object-cover" />
+            </template>
+            <p class="text-sm leading-relaxed text-muted-foreground" x-text="task.prompt"></p>
+            <p class="text-xs text-muted-foreground">
+              Working with <span class="text-foreground" x-text="otherName"></span>. You keep the draft.
+            </p>
+          </div>
+        </aside>
+
+        <section class="flex min-h-0 min-w-0 flex-1 flex-col border-b border-border lg:border-b-0 lg:border-r">
+          <div class="flex items-center justify-between border-b border-border px-4 py-2">
+            <p class="text-xs uppercase tracking-wide text-muted-foreground">Draft</p>
+            <p class="text-xs text-muted-foreground" x-show="role === 'participant'">
+              <span x-text="wordCount(document)"></span> / <span x-text="timings.wordLimit"></span> words
+            </p>
+          </div>
+          <textarea
+            class="min-h-0 flex-1 resize-none bg-transparent px-4 py-3 text-sm leading-relaxed outline-none"
+            x-model="document"
+            :readonly="role !== 'participant'"
+            :placeholder="role === 'participant' ? 'Keep writing. Suggestions appear below.' : 'You can read the draft. Propose a revision in the chat column.'"
+          ></textarea>
+          <div class="shrink-0 space-y-3 border-t border-border p-4" x-show="pendingSuggestion">
+            <p class="text-xs uppercase tracking-wide text-muted-foreground">Suggested revision</p>
+            <p class="whitespace-pre-wrap text-sm leading-relaxed" x-text="pendingSuggestion"></p>
+            <div class="flex flex-wrap gap-2" x-show="role === 'participant'" x-cloak>
+              <button class="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground" type="button" @click="applySuggestion()">
+                Apply
+              </button>
+              <button class="rounded-md border border-border px-3 py-1.5 text-sm" type="button" @click="dismissSuggestion()">
+                Dismiss
+              </button>
+            </div>
+          </div>
+          <div class="flex shrink-0 gap-2 border-t border-border p-3" x-show="role === 'participant'">
+            <button class="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground" type="button" @click="saveDraft()">
+              Save version
+            </button>
+          </div>
+        </section>
+
+        <section class="flex min-h-0 w-full shrink-0 flex-col lg:w-96">
+          <div class="min-h-0 flex-1 space-y-3 overflow-y-auto p-4" id="chat-log">
+            <template x-for="message in messages" :key="message.id">
+              <div>
+                <p class="text-[11px] uppercase tracking-wide text-muted-foreground" x-text="senderLabel(message.sender)"></p>
+                <p class="mt-1 whitespace-pre-wrap text-sm leading-relaxed" x-text="message.text"></p>
+              </div>
+            </template>
+          </div>
+          <form class="shrink-0 border-t border-border p-3" @submit.prevent="sendMessage()">
+            <textarea
+              class="min-h-16 w-full rounded-md border border-input bg-card px-3 py-2 text-sm outline-none ring-ring focus:ring-2"
+              x-model="draftMessage"
+              placeholder="Message…"
+              rows="2"
+            ></textarea>
+            <div class="mt-2 flex items-center justify-between gap-2">
+              <button class="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground" type="submit">
+                Send
+              </button>
+            </div>
+          </form>
+          <form class="shrink-0 border-t border-border p-3" x-show="role === 'partner'" x-cloak @submit.prevent="sendSuggestion()">
+            <label class="block text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Propose a full revision
+              <textarea
+                class="mt-2 min-h-24 w-full rounded-md border border-input bg-card px-3 py-2 text-sm outline-none ring-ring focus:ring-2"
+                x-model="suggestionDraft"
+                placeholder="Same theme, improved wording…"
+              ></textarea>
+            </label>
+            <button class="mt-2 rounded-md border border-border px-3 py-1.5 text-sm" type="submit">
+              Send suggestion
+            </button>
+          </form>
+        </section>
+      </div>
+    </template>
+  </div>
+</BaseLayout>

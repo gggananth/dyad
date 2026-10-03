@@ -1,0 +1,169 @@
+---
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import SiteHeader from "../../../components/SiteHeader.astro";
+import { isLabAdmin } from "../../../lib/lab-auth";
+import { relativeLabel, scoreLabel } from "../../../lib/lab-dashboard";
+import { getSession } from "../../../lib/store";
+import { getTask, wordCount } from "../../../lib/tasks";
+
+if (!isLabAdmin(Astro.request)) {
+  return Astro.redirect("/labs");
+}
+
+const id = Astro.params.id;
+if (!id) return Astro.redirect("/labs");
+const session = await getSession(id);
+if (!session) return Astro.redirect("/labs");
+
+const task = getTask(session.taskId);
+const applied = session.drafts.filter((draft) => draft.source === "suggestion-applied").length;
+const created = new Date(session.createdAt).toLocaleString();
+const connected = session.connectedAt ? new Date(session.connectedAt).toLocaleString() : "—";
+---
+
+<BaseLayout title={`${session.participantName} — Labs`}>
+  <SiteHeader />
+  <main class="mx-auto max-w-3xl px-6 py-12">
+    <p class="text-sm">
+      <a class="text-primary underline" href="/labs">← All submissions</a>
+    </p>
+    <p class="mt-6 text-sm uppercase tracking-[0.18em] text-muted-foreground">Submission</p>
+    <h1 class="mt-2 font-serif text-4xl tracking-tight">{session.participantName}</h1>
+    <p class="mt-2 text-sm text-muted-foreground">
+      {task?.title ?? session.taskId} · {session.stimulusMode} × {session.partnerType} · {session.phase}
+    </p>
+    <p class="mt-1 text-xs text-muted-foreground">
+      Created {created} · Connected {connected} · Code {session.joinCode}
+    </p>
+
+    <section class="mt-8 grid gap-3 sm:grid-cols-2">
+      <article class="rounded-xl border border-border bg-card p-4">
+        <h2 class="text-xs uppercase tracking-wide text-muted-foreground">Evaluations</h2>
+        <dl class="mt-3 space-y-1 text-sm">
+          <div class="flex justify-between gap-3">
+            <dt>Quality x</dt>
+            <dd>{scoreLabel(session.soloQuality)}</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt>Experience x′</dt>
+            <dd>{scoreLabel(session.soloExperience)}</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt>Relative quality y</dt>
+            <dd>{relativeLabel(session.relativeQuality)}</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt>Relative experience z</dt>
+            <dd>{relativeLabel(session.relativeExperience)}</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt>Epiphany</dt>
+            <dd>{session.epiphany == null ? "—" : session.epiphany ? "Yes" : "No"}</dd>
+          </div>
+        </dl>
+      </article>
+      <article class="rounded-xl border border-border bg-card p-4">
+        <h2 class="text-xs uppercase tracking-wide text-muted-foreground">Collaboration</h2>
+        <dl class="mt-3 space-y-1 text-sm">
+          <div class="flex justify-between gap-3">
+            <dt>Partner</dt>
+            <dd>{session.partnerName}</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt>Messages</dt>
+            <dd>{session.messages.length}</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt>Draft snapshots</dt>
+            <dd>{session.drafts.length}</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt>Suggestions applied</dt>
+            <dd>{applied}</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt>Pending suggestion</dt>
+            <dd>{session.pendingSuggestion ? "Yes" : "No"}</dd>
+          </div>
+        </dl>
+      </article>
+    </section>
+
+    {
+      session.epiphanyTrace && session.epiphanyTrace.length > 0 && (
+        <p class="mt-4 text-xs text-muted-foreground">
+          LSA distances: {session.epiphanyTrace.map((value) => value.toFixed(3)).join(" → ")}
+        </p>
+      )
+    }
+
+    <section class="mt-8 rounded-xl border border-border bg-card p-5">
+      <h2 class="text-sm font-medium uppercase tracking-wide text-muted-foreground">Locked solo</h2>
+      <p class="mt-3 whitespace-pre-wrap text-sm leading-relaxed">
+        {session.lockedSolo || "—"}
+      </p>
+      <p class="mt-2 text-xs text-muted-foreground">{wordCount(session.lockedSolo)} words</p>
+    </section>
+
+    <section class="mt-4 rounded-xl border border-border bg-card p-5">
+      <h2 class="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+        Collaborative / final draft
+      </h2>
+      <p class="mt-3 whitespace-pre-wrap text-sm leading-relaxed">
+        {session.document || "—"}
+      </p>
+      <p class="mt-2 text-xs text-muted-foreground">{wordCount(session.document)} words</p>
+    </section>
+
+    {
+      session.pendingSuggestion && (
+        <section class="mt-4 rounded-xl border border-border bg-card p-5">
+          <h2 class="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+            Pending suggestion
+          </h2>
+          <p class="mt-3 whitespace-pre-wrap text-sm leading-relaxed">{session.pendingSuggestion}</p>
+        </section>
+      )
+    }
+
+    <section class="mt-8">
+      <h2 class="font-serif text-2xl">Draft history</h2>
+      {
+        session.drafts.length === 0 ? (
+          <p class="mt-3 text-sm text-muted-foreground">No snapshots yet.</p>
+        ) : (
+          <ol class="mt-4 space-y-3">
+            {session.drafts.map((draft, index) => (
+              <li class="rounded-xl border border-border bg-card p-4">
+                <p class="text-xs text-muted-foreground">
+                  {index + 1}. {draft.source} · {new Date(draft.at).toLocaleString()} · {wordCount(draft.text)} words
+                </p>
+                <p class="mt-2 whitespace-pre-wrap text-sm leading-relaxed">{draft.text}</p>
+              </li>
+            ))}
+          </ol>
+        )
+      }
+    </section>
+
+    <section class="mt-8">
+      <h2 class="font-serif text-2xl">Collaboration log</h2>
+      {
+        session.messages.length === 0 ? (
+          <p class="mt-3 text-sm text-muted-foreground">No messages.</p>
+        ) : (
+          <ol class="mt-4 space-y-3">
+            {session.messages.map((message) => (
+              <li class="rounded-xl border border-border bg-card p-4">
+                <p class="text-xs uppercase tracking-wide text-muted-foreground">
+                  {message.sender} · {new Date(message.at).toLocaleString()}
+                </p>
+                <p class="mt-2 whitespace-pre-wrap text-sm leading-relaxed">{message.text}</p>
+              </li>
+            ))}
+          </ol>
+        )
+      }
+    </section>
+  </main>
+</BaseLayout>

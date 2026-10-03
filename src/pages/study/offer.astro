@@ -1,0 +1,59 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import SiteHeader from "../../components/SiteHeader.astro";
+import PromptPanel from "../../components/PromptPanel.astro";
+import { currentStudy } from "../../lib/auth";
+import { ensureOffer, nextStudyPath } from "../../lib/flow";
+import { getTask } from "../../lib/tasks";
+
+const study = await currentStudy(Astro.request);
+if (!study) return Astro.redirect("/");
+
+const exhausted = Astro.url.searchParams.get("exhausted") === "1";
+const session = exhausted ? null : await ensureOffer(study.id);
+if (session && session.phase !== "offer") {
+  return Astro.redirect(await nextStudyPath({ ...study, sessionId: session.id }));
+}
+
+const task = session ? getTask(session.taskId) : null;
+---
+
+<BaseLayout title="Your prompt — Dyad">
+  <SiteHeader />
+  <main class="mx-auto max-w-2xl px-6 py-12">
+    <p class="text-sm uppercase tracking-[0.18em] text-muted-foreground">One task</p>
+    <h1 class="mt-2 font-serif text-4xl tracking-tight">Will you take this prompt?</h1>
+    <p class="mt-3 text-sm leading-relaxed text-muted-foreground">
+      Accept it and you will write up to 75 words. Decline and we will offer a different one.
+    </p>
+
+    {
+      !task ? (
+        <p class="mt-10 rounded-xl border border-border bg-card p-5 text-sm">
+          There are no remaining prompts to offer. Please tell the researcher.
+        </p>
+      ) : (
+        <section class="mt-8 rounded-2xl border border-border bg-card p-5">
+          <PromptPanel task={task} mode={session!.stimulusMode} />
+          <div class="mt-8 flex flex-wrap gap-3">
+            <form method="post" action="/api/offer">
+              <input type="hidden" name="action" value="accept" />
+              <button
+                class="rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground"
+                type="submit"
+              >
+                Accept
+              </button>
+            </form>
+            <form method="post" action="/api/offer">
+              <input type="hidden" name="action" value="decline" />
+              <button class="rounded-lg border border-border px-5 py-2.5 text-sm" type="submit">
+                Decline
+              </button>
+            </form>
+          </div>
+        </section>
+      )
+    }
+  </main>
+</BaseLayout>

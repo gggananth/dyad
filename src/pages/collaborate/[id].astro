@@ -1,0 +1,102 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import SiteHeader from "../../components/SiteHeader.astro";
+import PromptPanel from "../../components/PromptPanel.astro";
+import { currentStudy } from "../../lib/auth";
+import { hasOpenSeat, peerPrompt, peerTitle } from "../../lib/peers";
+import { isPresent } from "../../lib/presence";
+import { getSession } from "../../lib/store";
+import { getTask } from "../../lib/tasks";
+
+const id = Astro.params.id;
+if (!id) return Astro.redirect("/collaborate");
+
+const session = await getSession(id);
+const study = await currentStudy(Astro.request);
+if (!session || session.partnerType !== "human" || !session.lockedSolo.trim()) {
+  return Astro.redirect("/collaborate");
+}
+if (session.phase !== "pairing" && session.phase !== "connected") {
+  return Astro.redirect("/collaborate");
+}
+if (study && study.id === session.studyId) {
+  return Astro.redirect(`/study/session/${session.id}`);
+}
+
+const task = getTask(session.taskId);
+const open = hasOpenSeat(session);
+const live = isPresent(session.lastHeartbeat.participant);
+const title = peerTitle(session);
+---
+
+<BaseLayout title={`${title} — Review`}>
+  <SiteHeader />
+  <main class="mx-auto max-w-2xl px-6 py-12">
+    <p class="text-sm uppercase tracking-[0.18em] text-muted-foreground">Anonymous draft</p>
+    <h1 class="mt-2 font-serif text-4xl tracking-tight">{title}</h1>
+    <p class="mt-3 text-sm text-muted-foreground">
+      <span class="inline-flex items-center gap-1.5">
+        <span class:list={["h-2 w-2 rounded-full", live ? "bg-primary" : "bg-muted-foreground/40"]}></span>
+        {live ? "Live" : "Away"}
+      </span>
+      <span class="mx-2">·</span>
+      {open ? "Open to join" : "Already in session"}
+    </p>
+
+    <section class="mt-8 rounded-2xl border border-border bg-card p-5">
+      {
+        task && session.stimulusMode === "image" ? (
+          <PromptPanel task={task} mode="image" />
+        ) : (
+          <p class="text-sm leading-relaxed">{peerPrompt(session)}</p>
+        )
+      }
+    </section>
+
+    <section class="mt-6 rounded-2xl border border-border bg-card p-5">
+      <h2 class="text-sm font-medium uppercase tracking-wide text-muted-foreground">Locked draft</h2>
+      <p class="mt-3 whitespace-pre-wrap text-sm leading-relaxed">{session.lockedSolo}</p>
+    </section>
+
+    {
+      session.document.trim() && session.document.trim() !== session.lockedSolo.trim() && (
+        <section class="mt-6 rounded-2xl border border-border bg-card p-5">
+          <h2 class="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+            Current draft
+          </h2>
+          <p class="mt-3 whitespace-pre-wrap text-sm leading-relaxed">{session.document}</p>
+        </section>
+      )
+    }
+
+    {
+      open ? (
+        <form class="mt-8 space-y-4" method="post" action="/api/collaborate/join">
+          <input type="hidden" name="sessionId" value={session.id} />
+          <label class="block text-sm font-medium">
+            Nickname in the session
+            <input
+              class="mt-2 w-full rounded-lg border border-input bg-card px-3 py-2.5 outline-none ring-ring focus:ring-2"
+              name="name"
+              required
+              maxlength="40"
+              autocomplete="nickname"
+              placeholder="They will see this name, not a profile"
+            />
+          </label>
+          <button
+            class="rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground"
+            type="submit"
+          >
+            Join to suggest changes
+          </button>
+        </form>
+      ) : (
+        <p class="mt-8 text-sm text-muted-foreground">
+          This seat is taken. You can still read the draft. Choose another open piece from the
+          <a class="text-primary underline" href="/collaborate">board</a>.
+        </p>
+      )
+    }
+  </main>
+</BaseLayout>

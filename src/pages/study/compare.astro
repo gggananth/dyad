@@ -1,0 +1,64 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import SiteHeader from "../../components/SiteHeader.astro";
+import RelativeScale from "../../components/RelativeScale.astro";
+import { currentStudy } from "../../lib/auth";
+import { nextStudyPath } from "../../lib/flow";
+import { getSession } from "../../lib/store";
+
+const study = await currentStudy(Astro.request);
+if (!study) return Astro.redirect("/");
+if (!study.sessionId) return Astro.redirect("/study/offer");
+
+const session = await getSession(study.sessionId);
+if (!session) return Astro.redirect("/study/offer");
+if (session.phase !== "compare") return Astro.redirect(await nextStudyPath(study));
+---
+
+<BaseLayout title="Compare — Dyad">
+  <SiteHeader />
+  <main class="mx-auto max-w-3xl px-6 py-12">
+    <p class="text-sm uppercase tracking-[0.18em] text-muted-foreground">Relative ratings</p>
+    <h1 class="mt-2 font-serif text-4xl tracking-tight">Compared with your locked draft</h1>
+    <p class="mt-3 text-sm leading-relaxed text-muted-foreground">
+      x is the locked solo version you rated earlier. Use the scale from x--- (much worse) through
+      x (about the same) to x+++ (much better).
+    </p>
+
+    <div class="mt-8 grid gap-4 md:grid-cols-2">
+      <section class="rounded-2xl border border-border bg-card p-5">
+        <h2 class="text-sm font-medium uppercase tracking-wide text-muted-foreground">Locked solo (x)</h2>
+        <p class="mt-3 whitespace-pre-wrap text-sm leading-relaxed">{session.lockedSolo}</p>
+      </section>
+      <section class="rounded-2xl border border-primary bg-card p-5">
+        <h2 class="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+          After collaborating
+        </h2>
+        <p class="mt-3 whitespace-pre-wrap text-sm leading-relaxed">{session.document}</p>
+      </section>
+    </div>
+
+    <form class="mt-10 space-y-8" method="post" action="/api/compare">
+      <RelativeScale
+        name="Quality of the collaborative piece (y), relative to x"
+        field="quality"
+        value={session.relativeQuality}
+        left="Much worse"
+        right="Much better"
+      />
+      <RelativeScale
+        name="How collaborating felt (z), relative to writing alone"
+        field="experience"
+        value={session.relativeExperience}
+        left="Much worse"
+        right="Much better"
+      />
+      <button
+        class="rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground"
+        type="submit"
+      >
+        Finish
+      </button>
+    </form>
+  </main>
+</BaseLayout>

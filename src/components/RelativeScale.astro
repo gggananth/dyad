@@ -1,0 +1,50 @@
+---
+interface Props {
+  name: string;
+  field: string;
+  value: number | null;
+  left: string;
+  right: string;
+}
+
+const { name, field, value, left, right } = Astro.props;
+
+const options = [
+  { value: -3, label: "x---" },
+  { value: -2, label: "x--" },
+  { value: -1, label: "x-" },
+  { value: 0, label: "x" },
+  { value: 1, label: "x+" },
+  { value: 2, label: "x++" },
+  { value: 3, label: "x+++" },
+];
+---
+
+<fieldset class="min-w-0">
+  <legend class="mb-2 text-sm font-medium">{name}</legend>
+  <div class="flex items-end gap-1">
+    <span class="hidden w-20 shrink-0 pb-2 text-[11px] leading-tight text-muted-foreground sm:block">
+      {left}
+    </span>
+    {
+      options.map((option) => (
+        <label class="flex-1 cursor-pointer text-center">
+          <input
+            class="peer sr-only"
+            type="radio"
+            name={field}
+            value={option.value}
+            checked={value === option.value}
+            required
+          />
+          <span class="flex h-11 items-center justify-center rounded-md border border-border font-mono text-xs peer-checked:border-primary peer-checked:bg-primary peer-checked:text-primary-foreground peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-ring">
+            {option.label}
+          </span>
+        </label>
+      ))
+    }
+    <span class="hidden w-20 shrink-0 pb-2 text-right text-[11px] leading-tight text-muted-foreground sm:block">
+      {right}
+    </span>
+  </div>
+</fieldset>

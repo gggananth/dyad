@@ -1,0 +1,339 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import { isLabAdmin, labPasswordConfigured } from "../lib/lab-auth";
+import {
+  COLLABORATORS,
+  PHASES,
+  STIMULI,
+  paginateSubmissions,
+  parseLabQuery,
+  queryHref,
+  scoreLabel,
+  usageStats,
+} from "../lib/lab-dashboard";
+import { listHumanWaiting, listSessions, listStudies } from "../lib/store";
+import { getTask } from "../lib/tasks";
+
+const authed = isLabAdmin(Astro.request);
+const configured = labPasswordConfigured();
+const loginError = Astro.url.searchParams.get("error") === "1";
+
+const waiting = authed ? await listHumanWaiting() : [];
+const allSessions = authed ? await listSessions() : [];
+const studies = authed ? await listStudies() : [];
+const stats = authed ? usageStats(allSessions, studies.length) : null;
+const query = parseLabQuery(Astro.url);
+const table = authed ? paginateSubmissions(allSessions, query) : null;
+---
+
+<BaseLayout title="Labs — Dyad">
+  <SiteHeader />
+  {
+    !authed ? (
+      <main class="mx-auto max-w-md px-6 py-16">
+        <p class="text-sm uppercase tracking-[0.18em] text-muted-foreground">Researcher</p>
+        <h1 class="mt-2 font-serif text-4xl tracking-tight">Labs</h1>
+        <p class="mt-3 text-sm leading-relaxed text-muted-foreground">
+          Sign in with the admin password from <span class="font-mono">LAB_ADMIN_PASSWORD</span>.
+        </p>
+        {
+          !configured && (
+            <p class="mt-4 rounded-lg border border-border bg-card p-3 text-sm text-muted-foreground">
+              No password is set yet. Add LAB_ADMIN_PASSWORD to your environment, then restart the
+              server.
+            </p>
+          )
+        }
+        {
+          loginError && (
+            <p class="mt-4 text-sm text-danger">That password did not match.</p>
+          )
+        }
+        <form class="mt-8 space-y-4" method="post" action="/api/lab/login">
+          <label class="block text-sm font-medium">
+            Admin password
+            <input
+              class="mt-2 w-full rounded-lg border border-input bg-card px-3 py-2.5 outline-none ring-ring focus:ring-2"
+              type="password"
+              name="password"
+              required
+              autocomplete="current-password"
+            />
+          </label>
+          <button
+            class="rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-40"
+            type="submit"
+            disabled={!configured}
+          >
+            Sign in
+          </button>
+        </form>
+      </main>
+    ) : stats && table ? (
+      <main class="mx-auto max-w-6xl px-6 py-12">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p class="text-sm uppercase tracking-[0.18em] text-muted-foreground">Researcher</p>
+            <h1 class="mt-2 font-serif text-4xl tracking-tight">Labs</h1>
+          </div>
+          <div class="flex flex-wrap items-center gap-3 text-sm">
+            <a class="text-primary underline" href="/api/lab/export">JSON</a>
+            <a class="text-primary underline" href="/api/lab/export?format=csv">ANOVA CSV</a>
+            <form method="post" action="/api/lab/logout">
+              <button class="rounded-md border border-border px-3 py-1.5" type="submit">
+                Sign out
+              </button>
+            </form>
+          </div>
+        </div>
+        <p class="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+          Usage across the 2×2 study, then every submission with ratings and collaboration.
+        </p>
+
+        <section class="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <article class="rounded-xl border border-border bg-card p-4">
+            <p class="text-xs uppercase tracking-wide text-muted-foreground">Participants</p>
+            <p class="mt-1 font-serif text-3xl">{stats.studies}</p>
+            <p class="mt-1 text-xs text-muted-foreground">{stats.sessions} sessions · {stats.withDraft} with a locked draft</p>
+          </article>
+          <article class="rounded-xl border border-border bg-card p-4">
+            <p class="text-xs uppercase tracking-wide text-muted-foreground">Progress</p>
+            <p class="mt-1 font-serif text-3xl">{stats.completed}</p>
+            <p class="mt-1 text-xs text-muted-foreground">{stats.inProgress} in progress · {stats.waiting} waiting for a partner</p>
+          </article>
+          <article class="rounded-xl border border-border bg-card p-4">
+            <p class="text-xs uppercase tracking-wide text-muted-foreground">On the platform</p>
+            <p class="mt-1 font-serif text-3xl">{stats.live}</p>
+            <p class="mt-1 text-xs text-muted-foreground">{stats.connected} reached a collaborator · {stats.applied} suggestions applied</p>
+          </article>
+          <article class="rounded-xl border border-border bg-card p-4">
+            <p class="text-xs uppercase tracking-wide text-muted-foreground">Epiphany</p>
+            <p class="mt-1 font-serif text-3xl">{stats.epiphanyYes}</p>
+            <p class="mt-1 text-xs text-muted-foreground">{stats.epiphanyNo} none · {stats.sessions - stats.epiphanyYes - stats.epiphanyNo} not scored</p>
+          </article>
+        </section>
+
+        <section class="mt-4 grid gap-3 lg:grid-cols-3">
+          <article class="rounded-xl border border-border bg-card p-4">
+            <p class="text-xs uppercase tracking-wide text-muted-foreground">Stimulus</p>
+            <p class="mt-2 text-sm">Text {stats.text} · Image {stats.image}</p>
+          </article>
+          <article class="rounded-xl border border-border bg-card p-4">
+            <p class="text-xs uppercase tracking-wide text-muted-foreground">Collaborator</p>
+            <p class="mt-2 text-sm">Human {stats.human} · AI {stats.ai}</p>
+          </article>
+          <article class="rounded-xl border border-border bg-card p-4">
+            <p class="text-xs uppercase tracking-wide text-muted-foreground">Mean ratings</p>
+            <p class="mt-2 text-sm">
+              x {scoreLabel(stats.meanX)} · x′ {scoreLabel(stats.meanXp)} · y {scoreLabel(stats.meanY)} · z {scoreLabel(stats.meanZ)}
+            </p>
+          </article>
+        </section>
+
+        <section class="mt-4 overflow-x-auto rounded-xl border border-border bg-card p-4">
+          <p class="text-xs uppercase tracking-wide text-muted-foreground">Assignment cells</p>
+          <table class="mt-3 w-full text-left text-sm">
+            <thead class="text-muted-foreground">
+              <tr>
+                <th class="py-1 pr-3 font-medium">Cell</th>
+                <th class="py-1 font-medium">Sessions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(stats.cells).map(([cell, count]) => (
+                <tr class="border-t border-border">
+                  <td class="py-1.5 pr-3">{cell}</td>
+                  <td class="py-1.5">{count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section class="mt-10">
+          <h2 class="font-serif text-2xl">Join a session</h2>
+          <form class="mt-4 grid gap-3 sm:grid-cols-[1fr_8rem_auto]" method="post" action="/api/lab/join">
+            <input
+              class="rounded-lg border border-input bg-card px-3 py-2 outline-none ring-ring focus:ring-2"
+              name="name"
+              required
+              placeholder="Your name"
+            />
+            <input
+              class="rounded-lg border border-input bg-card px-3 py-2 uppercase tracking-widest outline-none ring-ring focus:ring-2"
+              name="code"
+              required
+              maxlength="8"
+              placeholder="CODE"
+            />
+            <button class="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground" type="submit">
+              Join
+            </button>
+          </form>
+        </section>
+
+        <section class="mt-10">
+          <h2 class="font-serif text-2xl">Waiting for a human partner</h2>
+          {
+            waiting.length === 0 ? (
+              <p class="mt-3 text-sm text-muted-foreground">None right now.</p>
+            ) : (
+              <ul class="mt-4 space-y-3">
+                {waiting.map((session) => {
+                  const task = getTask(session.taskId);
+                  return (
+                    <li class="rounded-xl border border-border bg-card p-4">
+                      <p class="font-medium">{session.participantName}</p>
+                      <p class="text-sm text-muted-foreground">
+                        {task?.title ?? session.taskId} · {session.stimulusMode}
+                      </p>
+                      <p class="mt-2 font-mono text-lg tracking-[0.3em]">{session.joinCode}</p>
+                    </li>
+                  );
+                })}
+              </ul>
+            )
+          }
+        </section>
+
+        <section class="mt-12">
+          <h2 class="font-serif text-2xl">Submissions</h2>
+          <p class="mt-2 text-sm text-muted-foreground">
+            Search drafts, ratings, and collaboration. {table.total} match this filter.
+          </p>
+          <form class="mt-4 grid gap-3 md:grid-cols-6" method="get" action="/labs">
+            <input
+              class="rounded-lg border border-input bg-card px-3 py-2 text-sm outline-none ring-ring focus:ring-2 md:col-span-2"
+              type="search"
+              name="q"
+              value={query.q}
+              placeholder="Search name, task, draft, chat…"
+            />
+            <select class="rounded-lg border border-input bg-card px-3 py-2 text-sm" name="phase">
+              <option value="all" selected={query.phase === "all"}>All phases</option>
+              {PHASES.map((phase) => (
+                <option value={phase} selected={query.phase === phase}>
+                  {phase}
+                </option>
+              ))}
+            </select>
+            <select class="rounded-lg border border-input bg-card px-3 py-2 text-sm" name="stimulus">
+              <option value="all" selected={query.stimulus === "all"}>All stimuli</option>
+              {STIMULI.map((mode) => (
+                <option value={mode} selected={query.stimulus === mode}>
+                  {mode}
+                </option>
+              ))}
+            </select>
+            <select class="rounded-lg border border-input bg-card px-3 py-2 text-sm" name="collaborator">
+              <option value="all" selected={query.collaborator === "all"}>All collaborators</option>
+              {COLLABORATORS.map((kind) => (
+                <option value={kind} selected={query.collaborator === kind}>
+                  {kind}
+                </option>
+              ))}
+            </select>
+            <div class="flex gap-2">
+              <select class="min-w-0 flex-1 rounded-lg border border-input bg-card px-3 py-2 text-sm" name="epiphany">
+                <option value="all" selected={query.epiphany === "all"}>Epiphany: all</option>
+                <option value="yes" selected={query.epiphany === "yes"}>Yes</option>
+                <option value="no" selected={query.epiphany === "no"}>No</option>
+                <option value="pending" selected={query.epiphany === "pending"}>Pending</option>
+              </select>
+              <button class="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground" type="submit">
+                Filter
+              </button>
+            </div>
+          </form>
+
+          <div class="mt-4 overflow-x-auto rounded-xl border border-border bg-card">
+            <table class="w-full min-w-[64rem] text-left text-sm">
+              <thead class="text-muted-foreground">
+                <tr>
+                  <th class="px-3 py-2 font-medium">Participant</th>
+                  <th class="px-3 py-2 font-medium">Prompt</th>
+                  <th class="px-3 py-2 font-medium">Cell</th>
+                  <th class="px-3 py-2 font-medium">Phase</th>
+                  <th class="px-3 py-2 font-medium">x / x′</th>
+                  <th class="px-3 py-2 font-medium">y / z</th>
+                  <th class="px-3 py-2 font-medium">Epiphany</th>
+                  <th class="px-3 py-2 font-medium">Collaboration</th>
+                  <th class="px-3 py-2 font-medium"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {
+                  table.rows.length === 0 ? (
+                    <tr>
+                      <td class="px-3 py-6 text-muted-foreground" colspan="9">
+                        No submissions match.
+                      </td>
+                    </tr>
+                  ) : (
+                    table.rows.map((row) => (
+                      <tr class="border-t border-border align-top">
+                        <td class="px-3 py-2">
+                          <p class="font-medium">{row.participant}</p>
+                          <p class="font-mono text-xs text-muted-foreground">{row.code}</p>
+                        </td>
+                        <td class="px-3 py-2">
+                          <p>{row.task}</p>
+                          <p class="text-xs text-muted-foreground">{row.words} words</p>
+                        </td>
+                        <td class="px-3 py-2">
+                          {row.stimulus} × {row.collaborator}
+                        </td>
+                        <td class="px-3 py-2">{row.phase}</td>
+                        <td class="px-3 py-2">
+                          {scoreLabel(row.x)} / {scoreLabel(row.xp)}
+                        </td>
+                        <td class="px-3 py-2">
+                          {row.yLabel} / {row.zLabel}
+                        </td>
+                        <td class="px-3 py-2">{row.epiphany}</td>
+                        <td class="px-3 py-2">
+                          <p>{row.partner}</p>
+                          <p class="text-xs text-muted-foreground">
+                            {row.partnerMessages} partner msgs · {row.applied} applied · {row.drafts} drafts
+                          </p>
+                        </td>
+                        <td class="px-3 py-2">
+                          <a class="text-primary underline" href={`/labs/submissions/${row.id}`}>
+                            View
+                          </a>
+                        </td>
+                      </tr>
+                    ))
+                  )
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <div class="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm">
+            <p class="text-muted-foreground">
+              Page {table.page} of {table.pages}
+            </p>
+            <p class="flex gap-3">
+              {
+                table.page > 1 && (
+                  <a class="text-primary underline" href={queryHref(query, table.page - 1)}>
+                    Previous
+                  </a>
+                )
+              }
+              {
+                table.page < table.pages && (
+                  <a class="text-primary underline" href={queryHref(query, table.page + 1)}>
+                    Next
+                  </a>
+                )
+              }
+            </p>
+          </div>
+        </section>
+      </main>
+    ) : null
+  }
+</BaseLayout>

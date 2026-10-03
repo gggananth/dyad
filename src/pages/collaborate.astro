@@ -1,0 +1,90 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import { currentStudy } from "../lib/auth";
+import { config } from "../lib/config";
+import { toPeerRow } from "../lib/peers";
+import { listPeerSessions } from "../lib/store";
+
+const study = await currentStudy(Astro.request);
+const rows = (await listPeerSessions(study?.id)).map(toPeerRow);
+const boot = { rows, everyMs: config.noticeEveryMs };
+---
+
+<BaseLayout title="Collaborate — Dyad">
+  <SiteHeader />
+  <main class="mx-auto max-w-4xl px-6 py-12" x-data="peerBoard(window.DYAD_PEERS)" x-init="init()">
+    <script is:inline define:vars={{ boot }}>
+      window.DYAD_PEERS = boot;
+    </script>
+    <p class="text-sm uppercase tracking-[0.18em] text-muted-foreground">Anonymous peers</p>
+    <h1 class="mt-2 font-serif text-4xl tracking-tight">Review, then suggest</h1>
+    <p class="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+      Names are hidden. Read the locked draft first. If the seat is open, you can join and propose
+      wording — you cannot take over the theme. Live means the writer is on the platform right now.
+    </p>
+
+    <section class="mt-8">
+      <template x-if="rows.length === 0">
+        <p class="text-sm text-muted-foreground">
+          No peer drafts are waiting right now. Check again in a minute, or start a piece of your own.
+        </p>
+      </template>
+      <div class="overflow-x-auto" x-show="rows.length > 0">
+        <table class="w-full text-left text-sm">
+          <thead class="text-muted-foreground">
+            <tr>
+              <th class="py-2 pr-3 font-medium">Live</th>
+              <th class="py-2 pr-3 font-medium">Seat</th>
+              <th class="py-2 pr-3 font-medium">Prompt</th>
+              <th class="py-2 pr-3 font-medium">Locked draft</th>
+              <th class="py-2 font-medium"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="row in rows" :key="row.id">
+              <tr class="border-t border-border align-top">
+                <td class="py-3 pr-3">
+                  <span class="inline-flex items-center gap-1.5">
+                    <span class="h-2 w-2 rounded-full" :class="row.live ? 'bg-primary' : 'bg-muted-foreground/40'"></span>
+                    <span x-text="row.live ? 'Live' : 'Away'"></span>
+                  </span>
+                </td>
+                <td class="py-3 pr-3" x-text="row.open ? 'Open' : 'In session'"></td>
+                <td class="py-3 pr-3">
+                  <p class="font-medium" x-text="row.title"></p>
+                  <p class="text-xs text-muted-foreground" x-text="row.stimulusMode"></p>
+                </td>
+                <td class="max-w-sm py-3 pr-3 text-muted-foreground" x-text="row.excerpt"></td>
+                <td class="py-3">
+                  <a class="text-primary underline" :href="'/collaborate/' + row.id">Review</a>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+  <script is:inline>
+    document.addEventListener("alpine:init", () => {
+      Alpine.data("peerBoard", (boot) => ({
+        rows: boot?.rows ?? [],
+        everyMs: boot?.everyMs ?? 60000,
+        init() {
+          setInterval(() => this.refresh(), this.everyMs);
+        },
+        async refresh() {
+          try {
+            const response = await fetch("/api/collaborate/list", { cache: "no-store" });
+            if (!response.ok) return;
+            const data = await response.json();
+            this.rows = data.rows ?? [];
+          } catch {
+            /* ignore */
+          }
+        },
+      }));
+    });
+  </script>
+</BaseLayout>

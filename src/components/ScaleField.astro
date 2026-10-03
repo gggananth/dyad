@@ -1,0 +1,42 @@
+---
+interface Props {
+  name: string;
+  field: string;
+  value: number | null;
+  labels: [string, string];
+  required?: boolean;
+}
+
+const { name, field, value, labels, required = false } = Astro.props;
+---
+
+<fieldset class="min-w-0">
+  <legend class="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+    {name}
+  </legend>
+  <div class="flex items-center gap-1">
+    <span class="hidden w-16 shrink-0 text-[11px] leading-tight text-muted-foreground sm:block">
+      {labels[0]}
+    </span>
+    {
+      [1, 2, 3, 4, 5].map((n) => (
+        <label class="flex-1 cursor-pointer">
+          <input
+            class="peer sr-only"
+            type="radio"
+            name={field}
+            value={n}
+            checked={value === n}
+            required={required}
+          />
+          <span class="flex h-9 items-center justify-center rounded-md border border-border text-sm peer-checked:border-primary peer-checked:bg-primary peer-checked:text-primary-foreground peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-ring">
+            {n}
+          </span>
+        </label>
+      ))
+    }
+    <span class="hidden w-16 shrink-0 text-right text-[11px] leading-tight text-muted-foreground sm:block">
+      {labels[1]}
+    </span>
+  </div>
+</fieldset>

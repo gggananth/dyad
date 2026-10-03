@@ -1,0 +1,61 @@
+---
+import "../styles/global.css";
+import { config } from "../lib/config";
+
+interface Props {
+  title?: string;
+  full?: boolean;
+}
+
+const { title = "Dyad", full = false } = Astro.props;
+const noticeEveryMs = config.noticeEveryMs;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="generator" content={Astro.generator} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,620;1,9..144,500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap"
+      rel="stylesheet"
+    />
+    <title>{title}</title>
+    <script is:inline>
+      (() => {
+        const stored = localStorage.getItem("dyad-theme");
+        const dark =
+          stored === "dark" ||
+          (!stored && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        if (dark) document.documentElement.classList.add("dark");
+      })();
+    </script>
+    <script is:inline src="/js/session-room.js"></script>
+    <script is:inline src="/js/notices.js"></script>
+    <script defer src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+  </head>
+  <body class:list={["bg-background text-foreground antialiased", full && "overflow-hidden"]}>
+    <div
+      id="proposal-banner"
+      class="hidden border-b border-border bg-card px-4 py-2 text-sm"
+      role="status"
+    >
+      <a class="text-primary underline" id="proposal-banner-link" href="/">A collaborator proposed an edit to your piece. Open it.</a>
+    </div>
+    <script is:inline define:vars={{ noticeEveryMs }}>
+      window.DYAD_NOTICE_EVERY_MS = noticeEveryMs;
+    </script>
+    <slot />
+    <script is:inline>
+      window.toggleTheme = () => {
+        const dark = document.documentElement.classList.toggle("dark");
+        localStorage.setItem("dyad-theme", dark ? "dark" : "light");
+      };
+    </script>
+  </body>
+</html>

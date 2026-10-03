@@ -1,0 +1,64 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import SiteHeader from "../../components/SiteHeader.astro";
+import PromptPanel from "../../components/PromptPanel.astro";
+import { currentStudy } from "../../lib/auth";
+import { nextStudyPath } from "../../lib/flow";
+import { config } from "../../lib/config";
+import { getSession } from "../../lib/store";
+import { getTask } from "../../lib/tasks";
+
+const study = await currentStudy(Astro.request);
+if (!study) return Astro.redirect("/");
+if (!study.sessionId) return Astro.redirect("/study/offer");
+
+const session = await getSession(study.sessionId);
+if (!session) return Astro.redirect("/study/offer");
+if (session.phase !== "write") return Astro.redirect(await nextStudyPath(study));
+
+const task = getTask(session.taskId);
+if (!task) return Astro.redirect("/study/offer");
+---
+
+<BaseLayout title="Write — Dyad">
+  <SiteHeader />
+  <main class="mx-auto max-w-2xl px-6 py-12" x-data={`{ text: ${JSON.stringify(session.soloOriginal)}, limit: ${config.wordLimit} }`}>
+    <p class="text-sm uppercase tracking-[0.18em] text-muted-foreground">Solo draft</p>
+    <h1 class="mt-2 font-serif text-4xl tracking-tight">Write on your own first</h1>
+    <p class="mt-3 text-sm leading-relaxed text-muted-foreground">
+      Stay under {config.wordLimit} words. After you submit, a grammar pass will run. You can still
+      go back and edit before you lock a version.
+    </p>
+
+    <section class="mt-8 rounded-2xl border border-border bg-card p-5">
+      <PromptPanel task={task} mode={session.stimulusMode} />
+    </section>
+
+    <form class="mt-8 space-y-4" method="post" action="/api/write">
+      <label class="block text-sm font-medium">
+        Your draft
+        <textarea
+          class="mt-2 min-h-48 w-full rounded-lg border border-input bg-card px-3 py-3 text-sm leading-relaxed outline-none ring-ring focus:ring-2"
+          name="draft"
+          required
+          x-model="text"
+          placeholder="Write here…"
+        ></textarea>
+      </label>
+      <div class="flex items-center justify-between gap-3">
+        <p class="text-sm text-muted-foreground">
+          <span x-text="text.trim() ? text.trim().split(/\s+/).length : 0"></span>
+          /
+          <span x-text="limit"></span> words
+        </p>
+        <button
+          class="rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-40"
+          type="submit"
+          :disabled="(text.trim() ? text.trim().split(/\s+/).length : 0) > limit"
+        >
+          Submit draft
+        </button>
+      </div>
+    </form>
+  </main>
+</BaseLayout>

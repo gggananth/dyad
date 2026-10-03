@@ -1,0 +1,50 @@
+---
+import { currentStudy } from "../lib/auth";
+import { nextStudyPath } from "../lib/flow";
+
+interface Props {
+  compact?: boolean;
+}
+
+const { compact = false } = Astro.props;
+const study = await currentStudy(Astro.request);
+const continueHref = study ? await nextStudyPath(study) : null;
+---
+
+<header
+  class:list={[
+    "flex items-center justify-between gap-3 border-b border-border",
+    compact ? "px-4 py-3" : "px-6 py-4",
+  ]}
+>
+  <a href="/" class="flex items-center gap-3">
+    <span class="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-medium text-primary-foreground">D</span>
+    <span>
+      <span class="font-serif text-lg tracking-tight">Dyad</span>
+      {
+        !compact && (
+          <span class="ml-2 text-sm text-muted-foreground">collaboration study</span>
+        )
+      }
+    </span>
+  </a>
+  <div class="flex items-center gap-2">
+    {
+      continueHref && continueHref !== "/study/done" && (
+        <a class="rounded-md px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted" href={continueHref}>
+          Your piece
+        </a>
+      )
+    }
+    <a class="rounded-md px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted" href="/collaborate">
+      Collaborate
+    </a>
+    <button
+      type="button"
+      class="rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted"
+      onclick="toggleTheme()"
+    >
+      Theme
+    </button>
+  </div>
+</header>

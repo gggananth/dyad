@@ -1,0 +1,18 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import SiteHeader from "../../components/SiteHeader.astro";
+---
+
+<BaseLayout title="Thanks — Dyad">
+  <SiteHeader />
+  <main class="mx-auto max-w-xl px-6 py-16">
+    <h1 class="font-serif text-4xl tracking-tight">That’s the session.</h1>
+    <p class="mt-4 text-sm leading-relaxed text-muted-foreground">
+      You can close this window. The other person will rate the collaboration on their side.
+    </p>
+    <p class="mt-6 flex flex-wrap gap-4 text-sm">
+      <a class="text-primary underline" href="/collaborate">Review other drafts</a>
+      <a class="text-primary underline" href="/labs">Back to labs</a>
+    </p>
+  </main>
+</BaseLayout>

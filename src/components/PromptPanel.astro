@@ -1,0 +1,29 @@
+---
+import { IMAGE_INSTRUCTION } from "../lib/config";
+import type { StimulusMode, Task } from "../lib/types";
+
+interface Props {
+  task: Task;
+  mode: StimulusMode;
+}
+
+const { task, mode } = Astro.props;
+---
+
+{
+  mode === "image" ? (
+    <div class="space-y-4">
+      <img
+        src={task.image}
+        alt=""
+        class="max-h-[28rem] w-full rounded-xl border border-border object-cover"
+      />
+      <p class="text-sm leading-relaxed text-foreground">{IMAGE_INSTRUCTION}</p>
+    </div>
+  ) : (
+    <div class="space-y-3">
+      <h2 class="font-serif text-2xl tracking-tight">{task.title}</h2>
+      <p class="text-sm leading-relaxed text-foreground">{task.prompt}</p>
+    </div>
+  )
+}

@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Fraunces", ui-serif, Georgia, serif;
+
+  --color-background: #f3eee4;
+  --color-foreground: #1b1714;
+  --color-card: #fffdf8;
+  --color-muted: #e7dfd2;
+  --color-muted-foreground: #6d655c;
+  --color-primary: #1f4a3a;
+  --color-primary-foreground: #f4efe6;
+  --color-accent: #b44a24;
+  --color-accent-foreground: #fffaf4;
+  --color-border: #d9d0c2;
+  --color-ring: #1f4a3a;
+  --color-danger: #b42318;
+  --color-you: #1f4a3a;
+  --color-partner: #3d4a66;
+}
+
+@layer base {
+  .dark {
+    --color-background: #141210;
+    --color-foreground: #f2ebe1;
+    --color-card: #1c1916;
+    --color-muted: #26211c;
+    --color-muted-foreground: #a59c90;
+    --color-primary: #8fbfa6;
+    --color-primary-foreground: #10241c;
+    --color-accent: #e07a52;
+    --color-accent-foreground: #1a120e;
+    --color-border: #2c2722;
+    --color-ring: #8fbfa6;
+    --color-danger: #f97066;
+    --color-you: #8fbfa6;
+    --color-partner: #9aa7c7;
+  }
+
+  html,
+  body {
+    background: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+  }
+
+  [x-cloak] {
+    display: none !important;
+  }
+}
+
+@keyframes ring-pulse {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(1.45);
+    opacity: 0;
+  }
+}
+
+.ring-pulse {
+  animation: ring-pulse 1.8s ease-out infinite;
+}
+
+.ring-pulse-delay {
+  animation-delay: 0.55s;
+}
